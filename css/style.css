@@ -1,0 +1,656 @@
+/* ========================================
+   ShareCalc - 쉐어하우스 공용비용 정산기
+   스타일시트
+   ========================================
+
+   디자인 원칙:
+   - 깔끔하고 전문적인 느낌
+   - PC와 모바일 모두 편하게 사용
+   - 한국어 가독성 최적화
+   ======================================== */
+
+/* --- CSS 변수: 디자인 토큰 --- */
+/* 색상이나 크기를 바꾸고 싶으면 여기만 수정하면 됩니다 */
+:root {
+    --primary: #3B82F6;
+    --primary-hover: #2563EB;
+    --primary-light: #EFF6FF;
+    --bg: #F1F5F9;
+    --card-bg: #FFFFFF;
+    --text: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --border: #E2E8F0;
+    --border-focus: #93C5FD;
+    --success: #059669;
+    --success-light: #ECFDF5;
+    --danger: #DC2626;
+    --danger-light: #FEF2F2;
+    --warning: #D97706;
+    --warning-light: #FFFBEB;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --font: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
+}
+
+/* --- 리셋 & 기본 설정 --- */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font);
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+}
+
+/* --- 컨테이너 --- */
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 16px;
+}
+
+/* --- 헤더 --- */
+.header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: -0.5px;
+}
+
+.subtitle {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* --- 카드 (각 섹션의 컨테이너) --- */
+.card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.card-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+/* 단계 번호 뱃지 (1, 2, 3) */
+.step-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step-badge--success {
+    background: var(--success);
+}
+
+.card-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+/* --- 폼 아이템 (입주자/비용 각 행) --- */
+.form-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-item {
+    display: grid;
+    gap: 8px;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    position: relative;
+    transition: border-color 0.2s;
+}
+
+.form-item:hover {
+    border-color: var(--border-focus);
+}
+
+/* 입주자 폼: 3열 그리드 (이름 | 입실일 | 퇴실일) */
+.form-item--resident {
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: end;
+}
+
+/* 비용 폼: 4열 그리드 (항목 | 금액 | 시작일 | 종료일) */
+.form-item--expense {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    align-items: end;
+}
+
+/* 폼 필드 그룹 */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.field input,
+.field select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: var(--font);
+    color: var(--text);
+    background: var(--card-bg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field input:focus,
+.field select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.field input::placeholder {
+    color: var(--text-muted);
+}
+
+/* 금액 입력 필드: 오른쪽 정렬 */
+.field input[type="number"] {
+    text-align: right;
+}
+
+/* 삭제 버튼 */
+.btn-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+}
+
+.btn-delete:hover {
+    color: var(--danger);
+    background: var(--danger-light);
+}
+
+/* --- 버튼 스타일 --- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+/* 추가 버튼 */
+.btn-add {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--primary-light);
+    color: var(--primary);
+    border: 1px dashed var(--primary);
+    border-radius: var(--radius-sm);
+}
+
+.btn-add:hover {
+    background: var(--primary);
+    color: #fff;
+    border-style: solid;
+}
+
+.btn-icon {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* 메인 정산 버튼 */
+.btn-primary {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: var(--shadow);
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-calculate {
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    margin-bottom: 20px;
+}
+
+/* 보조 버튼 (결과 복사 등) */
+.btn-secondary {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: var(--border);
+}
+
+/* 링크 스타일 버튼 */
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px;
+}
+
+.btn-link:hover {
+    color: var(--danger);
+}
+
+/* --- 결과 영역 --- */
+.results-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+}
+
+/* 결과 요약 카드들 */
+.result-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.result-person {
+    background: var(--primary-light);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    text-align: center;
+}
+
+.result-person__name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.result-person__amount {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.result-person__days {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* 총 비용 요약 */
+.result-total {
+    text-align: center;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.result-total strong {
+    font-size: 20px;
+    color: var(--text);
+}
+
+/* 비용 항목별 상세 내역 */
+.result-detail {
+    margin-top: 24px;
+}
+
+.result-detail h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-expense {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+}
+
+.detail-expense__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.detail-expense__name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.detail-expense__period {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.detail-expense__amount {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.detail-expense__breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    font-size: 13px;
+    border-radius: 4px;
+}
+
+.detail-row:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.detail-row__name {
+    color: var(--text-secondary);
+}
+
+.detail-row__info {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.detail-row__days {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.detail-row__amount {
+    font-weight: 600;
+    min-width: 80px;
+    text-align: right;
+}
+
+/* 공실 비용 경고 */
+.vacant-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--warning-light);
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius-sm);
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--warning);
+}
+
+.vacant-warning strong {
+    color: #92400E;
+}
+
+/* 반올림 안내 */
+.rounding-note {
+    margin-top: 12px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* --- 토스트 알림 --- */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--text);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    white-space: nowrap;
+}
+
+.toast--visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --- 푸터 --- */
+.footer {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer p {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* --- 유효성 검증 에러 --- */
+.field--error input,
+.field--error select {
+    border-color: var(--danger);
+}
+
+.field--error label {
+    color: var(--danger);
+}
+
+.error-message {
+    padding: 12px 16px;
+    background: var(--danger-light);
+    color: var(--danger);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    margin-bottom: 16px;
+    border: 1px solid #FECACA;
+}
+
+/* --- 애니메이션 --- */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.3s ease;
+}
+
+#results-section {
+    animation: fadeIn 0.4s ease;
+}
+
+/* --- 반응형: 모바일 (768px 이하) --- */
+/* 모바일에서는 폼 필드를 세로로 쌓습니다 */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px 12px;
+    }
+
+    .header {
+        margin-bottom: 24px;
+    }
+
+    .logo {
+        font-size: 26px;
+    }
+
+    .card {
+        padding: 16px;
+    }
+
+    /* 모바일: 입주자 폼 2행 배치 */
+    .form-item--resident {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .form-item--resident .field:first-child {
+        grid-column: 1 / -1;
+    }
+
+    /* 모바일: 비용 폼 2행 배치 */
+    .form-item--expense {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .form-item--expense .field:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .result-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .result-person__amount {
+        font-size: 20px;
+    }
+}
+
+/* 아주 작은 모바일 (480px 이하) */
+@media (max-width: 480px) {
+    .form-item--resident,
+    .form-item--expense {
+        grid-template-columns: 1fr;
+    }
+
+    .form-item--resident .field:first-child,
+    .form-item--expense .field:first-child {
+        grid-column: auto;
+    }
+
+    .result-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .detail-row__info {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* --- 인쇄 스타일 --- */
+@media print {
+    body {
+        background: #fff;
+    }
+
+    .btn, .btn-add, .btn-calculate, .results-actions, .footer, .btn-delete {
+        display: none !important;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+    }
+
+    #results-section {
+        display: block !important;
+    }
+}
