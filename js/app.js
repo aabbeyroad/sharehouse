@@ -18,13 +18,16 @@
 // ========================================
 // 1. 상태 관리
 // ========================================
+
+// 현재 로그인된 프로필
+var currentProfile = null;
+
 // 앱의 모든 데이터는 이 state 객체에 저장됩니다.
-// residents: 입주자 목록 (이름, 입실일, 퇴실일)
-// expenses: 공용비용 목록 (항목명, 금액, 청구기간)
 let state = {
     residents: [],
     expenses: [],
-    nextId: 1  // 고유 ID 생성용 카운터
+    history: [],   // 정산 이력
+    nextId: 1
 };
 
 // ========================================
@@ -154,26 +157,29 @@ function formatDateFull(dateStr) {
 /**
  * 모든 비용에 대한 입주자별 분담액을 계산합니다.
  *
+ * [계산 원리 - 공실 비용 처리]
+ * 아무도 거주하지 않는 날의 비용은 운영자가 부담하지 않고,
+ * 해당 비용 기간 내 거주한 모든 입주자가 거주일수 비율로 균등 분담합니다.
+ *
  * @returns {object} {
  *   results: { [id]: { name, total, totalDays, expenses: [...] } },
- *   details: [ { name, amount, startDate, endDate, shares, vacantDays, vacantCost } ],
+ *   details: [ { name, amount, startDate, endDate, shares, vacantDays } ],
  *   totalExpense: number,
- *   totalVacantCost: number
+ *   transfers: [{from, to, amount}]
  * }
  */
 function calculate() {
     const results = {};
     const details = [];
     let totalExpense = 0;
-    let totalVacantCost = 0;
 
     // 각 입주자의 총 부담액을 0으로 초기화
     state.residents.forEach(function(r) {
         results[r.id] = {
             name: r.name,
             total: 0,
-            totalDays: 0,    // 총 거주일수 (비용별 합산)
-            expenses: []     // 비용별 상세 내역
+            totalDays: 0,
+            expenses: []
         };
     });
 
@@ -181,18 +187,15 @@ function calculate() {
     state.expenses.forEach(function(expense) {
         totalExpense += expense.amount;
 
-        // 이 비용 항목의 상세 결과를 저장할 객체
         var expenseDetail = {
             name: expense.name,
             amount: expense.amount,
             startDate: expense.startDate,
             endDate: expense.endDate,
-            shares: {},       // 입주자별 분담 정보
-            vacantDays: 0,    // 공실 일수 (아무도 없는 날)
-            vacantCost: 0     // 공실 비용 (운영자 부담분)
+            shares: {},
+            vacantDays: 0
         };
 
-        // ★ 핵심: 청구 기간의 총 일수와 1일당 비용 계산
         var totalDays = getDayCount(expense.startDate, expense.endDate);
         var dailyCost = expense.amount / totalDays;
 
@@ -201,11 +204,12 @@ function calculate() {
             expenseDetail.shares[r.id] = { days: 0, amount: 0 };
         });
 
-        // ★ 핵심: 매일을 순회하며 그날의 거주자를 찾아 비용 분할
-        forEachDay(expense.startDate, expense.endDate, function(dateStr) {
+        // 공실 일수 카운트용
+        var vacantDays = 0;
+        var vacantCost = 0;
 
-            // 이 날짜에 거주 중인 입주자 필터링
-            // 조건: 입실일 <= 해당일 <= 퇴실일 (퇴실일 없으면 아직 거주 중)
+        // ★ 1차: 매일을 순회하며 거주자가 있는 날의 비용 분할
+        forEachDay(expense.startDate, expense.endDate, function(dateStr) {
             var presentResidents = state.residents.filter(function(r) {
                 var afterMoveIn = dateStr >= r.moveInDate;
                 var beforeMoveOut = !r.moveOutDate || dateStr <= r.moveOutDate;
@@ -213,33 +217,48 @@ function calculate() {
             });
 
             if (presentResidents.length === 0) {
-                // ⚠️ 아무도 없는 날 = 공실
-                // 이 비용은 운영자가 부담해야 합니다
-                expenseDetail.vacantDays++;
-                expenseDetail.vacantCost += dailyCost;
+                vacantDays++;
+                vacantCost += dailyCost;
             } else {
-                // ★ 그날의 비용을 거주자 수로 균등 분할
                 var perPerson = dailyCost / presentResidents.length;
-
                 presentResidents.forEach(function(r) {
                     expenseDetail.shares[r.id].days++;
                     expenseDetail.shares[r.id].amount += perPerson;
-                    results[r.id].total += perPerson;
-                    results[r.id].totalDays++;
                 });
             }
         });
 
-        // 공실 비용 합산
-        totalVacantCost += expenseDetail.vacantCost;
+        expenseDetail.vacantDays = vacantDays;
 
-        // 각 입주자의 이 비용에 대한 상세 내역 저장
+        // ★ 2차: 공실 비용을 거주일수 비율로 재분배
+        // 아무도 없는 날의 비용은 해당 기간 내 거주한 입주자들이 비율대로 나눠 부담
+        if (vacantCost > 0) {
+            var totalPresenceDays = 0;
+            state.residents.forEach(function(r) {
+                totalPresenceDays += expenseDetail.shares[r.id].days;
+            });
+
+            if (totalPresenceDays > 0) {
+                state.residents.forEach(function(r) {
+                    var share = expenseDetail.shares[r.id];
+                    if (share.days > 0) {
+                        var ratio = share.days / totalPresenceDays;
+                        share.amount += vacantCost * ratio;
+                    }
+                });
+            }
+        }
+
+        // results에 합산
         state.residents.forEach(function(r) {
-            if (expenseDetail.shares[r.id].amount > 0) {
+            var share = expenseDetail.shares[r.id];
+            if (share.amount > 0) {
+                results[r.id].total += share.amount;
+                results[r.id].totalDays += share.days;
                 results[r.id].expenses.push({
                     name: expense.name,
-                    days: expenseDetail.shares[r.id].days,
-                    amount: expenseDetail.shares[r.id].amount
+                    days: share.days,
+                    amount: share.amount
                 });
             }
         });
@@ -247,15 +266,12 @@ function calculate() {
         details.push(expenseDetail);
     });
 
-    // ─── 송금 정산 계산 ───
-    // 각 입주자의 부담액과 평균을 비교하여 누가 누구에게 보내야 하는지 계산
     var transfers = calculateTransfers(results);
 
     return {
         results: results,
         details: details,
         totalExpense: totalExpense,
-        totalVacantCost: totalVacantCost,
         transfers: transfers
     };
 }
@@ -415,11 +431,12 @@ function renderResults(calcResult) {
     });
     html += '</div>';
 
-    // ─── 공실 비용 경고 (공실이 있는 경우에만 표시) ───
-    if (calcResult.totalVacantCost > 0) {
-        html += '<div class="vacant-warning">';
-        html += '<span>⚠️</span>';
-        html += '<span>공실 기간 비용 (운영자 부담): <strong>' + formatCurrency(roundTo10(calcResult.totalVacantCost)) + '</strong></span>';
+    // ─── 공실 안내 (공실이 있는 경우에만 표시) ───
+    var hasVacant = calcResult.details.some(function(d) { return d.vacantDays > 0; });
+    if (hasVacant) {
+        html += '<div class="vacant-info">';
+        html += '<span class="vacant-info__icon">&#8505;</span>';
+        html += '<span>공실 기간 비용은 거주 중인 입주자들이 거주일수 비율로 분담합니다.</span>';
         html += '</div>';
     }
 
@@ -452,14 +469,10 @@ function renderResults(calcResult) {
             }
         });
 
-        // 공실 표시
+        // 공실 일수 표시 (비용은 거주자에 재분배됨)
         if (detail.vacantDays > 0) {
-            html += '<div class="detail-row">';
-            html += '<span class="detail-row__name" style="color:var(--warning)">공실 (운영자)</span>';
-            html += '<div class="detail-row__info">';
-            html += '<span class="detail-row__days">' + detail.vacantDays + '일</span>';
-            html += '<span class="detail-row__amount" style="color:var(--warning)">' + formatCurrency(roundTo10(detail.vacantCost)) + '</span>';
-            html += '</div>';
+            html += '<div class="detail-row detail-row--vacant">';
+            html += '<span class="detail-row__name" style="color:var(--text-muted)">공실 ' + detail.vacantDays + '일 (거주자 분담)</span>';
             html += '</div>';
         }
 
@@ -659,6 +672,9 @@ function onCalculate() {
 
     // 마지막 계산 결과를 저장 (복사 기능에서 사용)
     state.lastResult = result;
+
+    // 정산 이력에 자동 저장
+    saveToHistory(result);
     saveToStorage();
 }
 
@@ -684,11 +700,6 @@ function copyResults() {
         text += '👤 ' + r.name + ': ' + formatCurrency(roundTo10(r.total)) + '\n';
     });
 
-    // 공실 비용
-    if (result.totalVacantCost > 0) {
-        text += '\n⚠️ 공실 비용 (운영자): ' + formatCurrency(roundTo10(result.totalVacantCost)) + '\n';
-    }
-
     // 상세 내역
     text += '\n📋 상세내역\n';
     result.details.forEach(function(detail) {
@@ -700,7 +711,7 @@ function copyResults() {
             }
         });
         if (detail.vacantDays > 0) {
-            text += '  - 공실: ' + formatCurrency(roundTo10(detail.vacantCost)) + ' (' + detail.vacantDays + '일)\n';
+            text += '  - 공실 ' + detail.vacantDays + '일 (거주자 분담)\n';
         }
     });
 
@@ -875,7 +886,8 @@ function resetData() {
     if (!confirm('모든 데이터를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
         return;
     }
-    state = { residents: [], expenses: [], nextId: 1 };
+    var savedHistory = state.history || [];
+    state = { residents: [], expenses: [], history: savedHistory, nextId: 1 };
     renderResidents();
     renderExpenses();
     document.getElementById('results-section').style.display = 'none';
@@ -884,43 +896,310 @@ function resetData() {
 }
 
 // ========================================
-// 6. 데이터 저장/불러오기 (localStorage)
+// 6. 프로필 관리 (회원가입/로그인)
 // ========================================
-// 브라우저를 닫았다 열어도 데이터가 유지됩니다.
-// localStorage는 브라우저 내부 저장소로, 서버가 필요없습니다.
 
-var STORAGE_KEY = 'sharecalc_data';
+var PROFILES_KEY = 'sharecalc_profiles';
+
+/**
+ * 저장된 모든 프로필 목록을 가져옵니다.
+ */
+function getProfiles() {
+    try {
+        var raw = localStorage.getItem(PROFILES_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * 프로필 목록을 저장합니다.
+ */
+function saveProfiles(profiles) {
+    try {
+        localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    } catch (e) {}
+}
+
+/**
+ * 간단한 해시 함수 (비밀번호 저장용)
+ * 실제 보안 목적이 아닌 로컬 프로필 구분용입니다.
+ */
+function simpleHash(str) {
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+        var ch = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + ch;
+        hash |= 0;
+    }
+    return hash.toString(36);
+}
+
+/**
+ * 회원가입
+ */
+function signUp(name, password) {
+    var profiles = getProfiles();
+    var exists = profiles.some(function(p) { return p.name === name; });
+    if (exists) return { ok: false, msg: '이미 존재하는 이름입니다.' };
+    if (!name.trim()) return { ok: false, msg: '이름을 입력해주세요.' };
+    if (!password || password.length < 4) return { ok: false, msg: '비밀번호를 4자 이상 입력해주세요.' };
+
+    var profile = {
+        id: Date.now().toString(36),
+        name: name.trim(),
+        hash: simpleHash(password),
+        createdAt: new Date().toISOString()
+    };
+    profiles.push(profile);
+    saveProfiles(profiles);
+    return { ok: true, profile: profile };
+}
+
+/**
+ * 로그인
+ */
+function logIn(name, password) {
+    var profiles = getProfiles();
+    var profile = profiles.find(function(p) { return p.name === name; });
+    if (!profile) return { ok: false, msg: '존재하지 않는 계정입니다.' };
+    if (profile.hash !== simpleHash(password)) return { ok: false, msg: '비밀번호가 일치하지 않습니다.' };
+    return { ok: true, profile: profile };
+}
+
+/**
+ * 프로필 로그인 후 데이터 로드
+ */
+function activateProfile(profile) {
+    currentProfile = profile;
+    try {
+        localStorage.setItem('sharecalc_current', profile.id);
+    } catch (e) {}
+    loadFromStorage();
+    showApp();
+    initApp();
+}
+
+/**
+ * 로그아웃
+ */
+function logOut() {
+    currentProfile = null;
+    try {
+        localStorage.removeItem('sharecalc_current');
+    } catch (e) {}
+    state = { residents: [], expenses: [], history: [], nextId: 1 };
+    showAuthScreen();
+}
+
+/**
+ * 앱 화면 표시 (로그인 후)
+ */
+function showApp() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = '';
+    var userNameEl = document.getElementById('current-user-name');
+    if (userNameEl && currentProfile) {
+        userNameEl.textContent = currentProfile.name;
+    }
+}
+
+/**
+ * 인증 화면 표시 (로그인 전)
+ */
+function showAuthScreen() {
+    document.getElementById('auth-screen').style.display = '';
+    document.getElementById('app-screen').style.display = 'none';
+    // 폼 초기화
+    var inputs = document.querySelectorAll('#auth-screen input');
+    inputs.forEach(function(input) { input.value = ''; });
+    var errEl = document.getElementById('auth-error');
+    if (errEl) errEl.textContent = '';
+}
+
+/**
+ * 로그인 폼 / 회원가입 폼 전환
+ */
+function toggleAuthMode() {
+    var loginForm = document.getElementById('login-form');
+    var signupForm = document.getElementById('signup-form');
+    if (loginForm.style.display === 'none') {
+        loginForm.style.display = '';
+        signupForm.style.display = 'none';
+    } else {
+        loginForm.style.display = 'none';
+        signupForm.style.display = '';
+    }
+    var errEl = document.getElementById('auth-error');
+    if (errEl) errEl.textContent = '';
+}
+
+// ========================================
+// 7. 정산 이력 관리
+// ========================================
+
+/**
+ * 현재 정산 결과를 이력에 저장합니다.
+ */
+function saveToHistory(calcResult) {
+    var entry = {
+        id: Date.now().toString(36),
+        date: new Date().toISOString(),
+        totalExpense: calcResult.totalExpense,
+        residents: state.residents.map(function(r) {
+            return { name: r.name, moveInDate: r.moveInDate, moveOutDate: r.moveOutDate };
+        }),
+        expenses: state.expenses.map(function(e) {
+            return { name: e.name, amount: e.amount, startDate: e.startDate, endDate: e.endDate };
+        }),
+        personResults: Object.keys(calcResult.results).map(function(id) {
+            var r = calcResult.results[id];
+            return { name: r.name, total: roundTo10(r.total) };
+        })
+    };
+    state.history.unshift(entry); // 최신이 먼저
+    if (state.history.length > 50) state.history.pop(); // 최대 50개
+    saveToStorage();
+}
+
+/**
+ * 이력 화면을 렌더링합니다.
+ */
+function renderHistory() {
+    var container = document.getElementById('history-content');
+    if (!container) return;
+
+    if (!state.history || state.history.length === 0) {
+        container.innerHTML = '<p class="history-empty">정산 이력이 없습니다. 정산을 실행하면 자동으로 저장됩니다.</p>';
+        return;
+    }
+
+    var html = '';
+    state.history.forEach(function(entry, index) {
+        var dateObj = new Date(entry.date);
+        var dateStr = dateObj.getFullYear() + '.' +
+            String(dateObj.getMonth() + 1).padStart(2, '0') + '.' +
+            String(dateObj.getDate()).padStart(2, '0');
+
+        html += '<div class="history-item">';
+        html += '<div class="history-item__header">';
+        html += '<span class="history-item__date">' + dateStr + '</span>';
+        html += '<span class="history-item__total">' + formatCurrency(entry.totalExpense) + '</span>';
+        html += '<button type="button" class="btn-delete btn-delete--small" data-history-index="' + index + '" title="이력 삭제" aria-label="이력 삭제">&times;</button>';
+        html += '</div>';
+        html += '<div class="history-item__people">';
+        entry.personResults.forEach(function(p) {
+            html += '<span class="history-chip">' + escapeHtml(p.name) + ' ' + formatCurrency(p.total) + '</span>';
+        });
+        html += '</div>';
+        html += '<button type="button" class="btn-link history-load-btn" data-history-index="' + index + '">이 데이터 불러오기</button>';
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * 이력에서 데이터를 불러옵니다.
+ */
+function loadFromHistory(index) {
+    var entry = state.history[index];
+    if (!entry) return;
+
+    if (state.residents.some(function(r) { return r.name.trim(); })) {
+        if (!confirm('현재 데이터가 이력의 데이터로 대체됩니다. 계속하시겠습니까?')) return;
+    }
+
+    state.residents = entry.residents.map(function(r) {
+        return { id: generateId(), name: r.name, moveInDate: r.moveInDate, moveOutDate: r.moveOutDate || '' };
+    });
+    state.expenses = entry.expenses.map(function(e) {
+        return { id: generateId(), name: e.name, amount: e.amount, startDate: e.startDate, endDate: e.endDate };
+    });
+
+    renderResidents();
+    renderExpenses();
+    saveToStorage();
+    document.getElementById('results-section').style.display = 'none';
+
+    // 이력 탭에서 정산기 탭으로 전환
+    switchTab('calculator');
+    showToast('이력 데이터를 불러왔습니다.');
+}
+
+/**
+ * 이력 삭제
+ */
+function deleteHistory(index) {
+    state.history.splice(index, 1);
+    saveToStorage();
+    renderHistory();
+    showToast('이력이 삭제되었습니다.');
+}
+
+/**
+ * 탭 전환 (정산기 / 이력)
+ */
+function switchTab(tabName) {
+    var calcTab = document.getElementById('tab-calculator');
+    var histTab = document.getElementById('tab-history');
+    var calcContent = document.getElementById('calculator-content');
+    var histContent = document.getElementById('history-section');
+
+    if (tabName === 'calculator') {
+        calcTab.classList.add('tab--active');
+        histTab.classList.remove('tab--active');
+        calcContent.style.display = '';
+        histContent.style.display = 'none';
+    } else {
+        calcTab.classList.remove('tab--active');
+        histTab.classList.add('tab--active');
+        calcContent.style.display = 'none';
+        histContent.style.display = '';
+        renderHistory();
+    }
+}
+
+// ========================================
+// 8. 데이터 저장/불러오기 (localStorage)
+// ========================================
 
 /**
  * 현재 상태를 브라우저에 저장합니다.
+ * 프로필별로 별도의 키를 사용합니다.
  */
 function saveToStorage() {
+    if (!currentProfile) return;
     try {
         var data = {
             residents: state.residents,
             expenses: state.expenses,
+            history: state.history,
             nextId: state.nextId
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-        // localStorage가 꽉 찼거나 사용 불가한 경우 무시
-    }
+        localStorage.setItem('sharecalc_data_' + currentProfile.id, JSON.stringify(data));
+    } catch (e) {}
 }
 
 /**
  * 브라우저에 저장된 데이터를 불러옵니다.
  */
 function loadFromStorage() {
+    if (!currentProfile) return;
     try {
-        var raw = localStorage.getItem(STORAGE_KEY);
+        var raw = localStorage.getItem('sharecalc_data_' + currentProfile.id);
         if (raw) {
             var data = JSON.parse(raw);
             state.residents = data.residents || [];
             state.expenses = data.expenses || [];
+            state.history = data.history || [];
             state.nextId = data.nextId || 1;
+        } else {
+            state = { residents: [], expenses: [], history: [], nextId: 1 };
         }
     } catch (e) {
-        // 파싱 오류 시 기본 상태 유지
+        state = { residents: [], expenses: [], history: [], nextId: 1 };
     }
 }
 
@@ -937,6 +1216,46 @@ function loadFromStorage() {
  * 실제 클릭/변경된 요소를 찾아서 처리합니다.
  */
 function initEvents() {
+    // ─── 인증 관련 이벤트 ───
+    document.getElementById('login-submit').addEventListener('click', function() {
+        var name = document.getElementById('login-name').value;
+        var pass = document.getElementById('login-pass').value;
+        var result = logIn(name, pass);
+        if (result.ok) {
+            activateProfile(result.profile);
+        } else {
+            document.getElementById('auth-error').textContent = result.msg;
+        }
+    });
+
+    document.getElementById('signup-submit').addEventListener('click', function() {
+        var name = document.getElementById('signup-name').value;
+        var pass = document.getElementById('signup-pass').value;
+        var result = signUp(name, pass);
+        if (result.ok) {
+            activateProfile(result.profile);
+            showToast('회원가입이 완료되었습니다!');
+        } else {
+            document.getElementById('auth-error').textContent = result.msg;
+        }
+    });
+
+    document.getElementById('toggle-auth-mode').addEventListener('click', toggleAuthMode);
+    document.getElementById('toggle-auth-mode-2').addEventListener('click', toggleAuthMode);
+    document.getElementById('logout-btn').addEventListener('click', logOut);
+
+    // Enter 키로 로그인/회원가입
+    document.getElementById('login-pass').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('login-submit').click();
+    });
+    document.getElementById('signup-pass').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('signup-submit').click();
+    });
+
+    // ─── 탭 전환 ───
+    document.getElementById('tab-calculator').addEventListener('click', function() { switchTab('calculator'); });
+    document.getElementById('tab-history').addEventListener('click', function() { switchTab('history'); });
+
     // 입주자 추가 버튼
     document.getElementById('add-resident-btn').addEventListener('click', addResident);
 
@@ -965,15 +1284,25 @@ function initEvents() {
     document.getElementById('import-input').addEventListener('change', function(e) {
         if (e.target.files && e.target.files[0]) {
             importData(e.target.files[0]);
-            e.target.value = ''; // 같은 파일 다시 선택 가능하도록
+            e.target.value = '';
         }
     });
 
-    // ─── 이벤트 위임: 삭제 버튼 ───
+    // ─── 이벤트 위임: 삭제 버튼 & 이력 버튼 ───
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('.btn-delete');
         if (btn) {
+            if (btn.dataset.historyIndex !== undefined) {
+                deleteHistory(parseInt(btn.dataset.historyIndex));
+                return;
+            }
             deleteItem(btn.dataset.type, btn.dataset.id);
+            return;
+        }
+
+        var histBtn = e.target.closest('.history-load-btn');
+        if (histBtn && histBtn.dataset.historyIndex !== undefined) {
+            loadFromHistory(parseInt(histBtn.dataset.historyIndex));
         }
     });
 
@@ -1001,11 +1330,31 @@ function init() {
     // 테마 로드
     loadTheme();
 
-    // 저장된 데이터 불러오기
-    loadFromStorage();
+    // 이벤트 등록 (인증 포함)
+    initEvents();
 
-    // 데이터가 없으면 빈 입주자 1명 + 빈 비용 1개를 기본 추가
-    // (사용자가 바로 입력을 시작할 수 있도록)
+    // 자동 로그인 시도: 이전에 로그인한 프로필이 있으면 복원
+    try {
+        var savedProfileId = localStorage.getItem('sharecalc_current');
+        if (savedProfileId) {
+            var profiles = getProfiles();
+            var profile = profiles.find(function(p) { return p.id === savedProfileId; });
+            if (profile) {
+                activateProfile(profile);
+                return;
+            }
+        }
+    } catch (e) {}
+
+    // 로그인 상태가 아니면 인증 화면 표시
+    showAuthScreen();
+}
+
+/**
+ * 로그인 후 앱 초기화
+ */
+function initApp() {
+    // 데이터가 없으면 기본 빈 항목 추가
     if (state.residents.length === 0) {
         state.residents.push({ id: generateId(), name: '', moveInDate: '', moveOutDate: '' });
     }
@@ -1013,12 +1362,8 @@ function init() {
         state.expenses.push({ id: generateId(), name: '', amount: 0, startDate: '', endDate: '' });
     }
 
-    // 화면 렌더링
     renderResidents();
     renderExpenses();
-
-    // 이벤트 등록
-    initEvents();
 }
 
 // DOM이 준비되면 앱 시작
