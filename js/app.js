@@ -157,23 +157,21 @@ function formatDateFull(dateStr) {
 /**
  * 모든 비용에 대한 입주자별 분담액을 계산합니다.
  *
- * [계산 원리 - 공실 비용 처리]
- * 아무도 거주하지 않는 날의 비용은 운영자가 부담하지 않고,
- * 해당 비용 기간 내 거주한 모든 입주자가 거주일수 비율로 균등 분담합니다.
+ * [계산 원리]
+ * - 매일 거주 중인 인원수로 그날의 비용을 나눕니다 (정원 개념 없음).
+ *   예: 4명 거주일 → 일비용/4, 3명 거주일 → 일비용/3
+ * - 아무도 거주하지 않는 날(0명)의 비용은 운영자가 전액 부담합니다.
  *
  * @returns {object} {
- *   results: { [id]: { name, total, totalDays, expenses: [...] } },
- *   details: [ { name, amount, startDate, endDate, shares, vacantDays } ],
- *   totalExpense: number,
- *   transfers: [{from, to, amount}]
+ *   results, details, totalExpense, totalVacantCost, transfers
  * }
  */
 function calculate() {
     const results = {};
     const details = [];
     let totalExpense = 0;
+    let totalVacantCost = 0;
 
-    // 각 입주자의 총 부담액을 0으로 초기화
     state.residents.forEach(function(r) {
         results[r.id] = {
             name: r.name,
@@ -183,7 +181,6 @@ function calculate() {
         };
     });
 
-    // ─── 각 비용 항목별로 일할 계산 수행 ───
     state.expenses.forEach(function(expense) {
         totalExpense += expense.amount;
 
@@ -193,22 +190,19 @@ function calculate() {
             startDate: expense.startDate,
             endDate: expense.endDate,
             shares: {},
-            vacantDays: 0
+            vacantDays: 0,
+            vacantCost: 0
         };
 
         var totalDays = getDayCount(expense.startDate, expense.endDate);
         var dailyCost = expense.amount / totalDays;
 
-        // 각 입주자의 분담 정보 초기화
         state.residents.forEach(function(r) {
             expenseDetail.shares[r.id] = { days: 0, amount: 0 };
         });
 
-        // 공실 일수 카운트용
-        var vacantDays = 0;
-        var vacantCost = 0;
-
-        // ★ 1차: 매일을 순회하며 거주자가 있는 날의 비용 분할
+        // ★ 매일을 순회하며 거주 인원수로 비용 분할
+        // 정원 개념 없이 그날 있는 사람 수로만 나눔
         forEachDay(expense.startDate, expense.endDate, function(dateStr) {
             var presentResidents = state.residents.filter(function(r) {
                 var afterMoveIn = dateStr >= r.moveInDate;
@@ -217,9 +211,11 @@ function calculate() {
             });
 
             if (presentResidents.length === 0) {
-                vacantDays++;
-                vacantCost += dailyCost;
+                // 아무도 없는 날 = 운영자 전액 부담
+                expenseDetail.vacantDays++;
+                expenseDetail.vacantCost += dailyCost;
             } else {
+                // 거주 인원수로 균등 분할 (4명이면 /4, 3명이면 /3)
                 var perPerson = dailyCost / presentResidents.length;
                 presentResidents.forEach(function(r) {
                     expenseDetail.shares[r.id].days++;
@@ -228,26 +224,7 @@ function calculate() {
             }
         });
 
-        expenseDetail.vacantDays = vacantDays;
-
-        // ★ 2차: 공실 비용을 거주일수 비율로 재분배
-        // 아무도 없는 날의 비용은 해당 기간 내 거주한 입주자들이 비율대로 나눠 부담
-        if (vacantCost > 0) {
-            var totalPresenceDays = 0;
-            state.residents.forEach(function(r) {
-                totalPresenceDays += expenseDetail.shares[r.id].days;
-            });
-
-            if (totalPresenceDays > 0) {
-                state.residents.forEach(function(r) {
-                    var share = expenseDetail.shares[r.id];
-                    if (share.days > 0) {
-                        var ratio = share.days / totalPresenceDays;
-                        share.amount += vacantCost * ratio;
-                    }
-                });
-            }
-        }
+        totalVacantCost += expenseDetail.vacantCost;
 
         // results에 합산
         state.residents.forEach(function(r) {
@@ -272,6 +249,7 @@ function calculate() {
         results: results,
         details: details,
         totalExpense: totalExpense,
+        totalVacantCost: totalVacantCost,
         transfers: transfers
     };
 }
@@ -431,12 +409,11 @@ function renderResults(calcResult) {
     });
     html += '</div>';
 
-    // ─── 공실 안내 (공실이 있는 경우에만 표시) ───
-    var hasVacant = calcResult.details.some(function(d) { return d.vacantDays > 0; });
-    if (hasVacant) {
-        html += '<div class="vacant-info">';
-        html += '<span class="vacant-info__icon">&#8505;</span>';
-        html += '<span>공실 기간 비용은 거주 중인 입주자들이 거주일수 비율로 분담합니다.</span>';
+    // ─── 공실 비용 안내 (0명인 날이 있는 경우에만 표시) ───
+    if (calcResult.totalVacantCost > 0) {
+        html += '<div class="vacant-warning">';
+        html += '<span class="vacant-warning__icon">&#9888;</span>';
+        html += '<span>아무도 거주하지 않은 기간의 비용 (운영자 부담): <strong>' + formatCurrency(roundTo10(calcResult.totalVacantCost)) + '</strong></span>';
         html += '</div>';
     }
 
@@ -469,10 +446,14 @@ function renderResults(calcResult) {
             }
         });
 
-        // 공실 일수 표시 (비용은 거주자에 재분배됨)
+        // 공실 표시 (0명인 날 = 운영자 부담)
         if (detail.vacantDays > 0) {
-            html += '<div class="detail-row detail-row--vacant">';
-            html += '<span class="detail-row__name" style="color:var(--text-muted)">공실 ' + detail.vacantDays + '일 (거주자 분담)</span>';
+            html += '<div class="detail-row">';
+            html += '<span class="detail-row__name" style="color:var(--warning)">공실 (운영자 부담)</span>';
+            html += '<div class="detail-row__info">';
+            html += '<span class="detail-row__days">' + detail.vacantDays + '일</span>';
+            html += '<span class="detail-row__amount" style="color:var(--warning)">' + formatCurrency(roundTo10(detail.vacantCost)) + '</span>';
+            html += '</div>';
             html += '</div>';
         }
 
@@ -700,6 +681,11 @@ function copyResults() {
         text += '👤 ' + r.name + ': ' + formatCurrency(roundTo10(r.total)) + '\n';
     });
 
+    // 공실 비용
+    if (result.totalVacantCost > 0) {
+        text += '\n⚠️ 공실 비용 (운영자 부담): ' + formatCurrency(roundTo10(result.totalVacantCost)) + '\n';
+    }
+
     // 상세 내역
     text += '\n📋 상세내역\n';
     result.details.forEach(function(detail) {
@@ -711,7 +697,7 @@ function copyResults() {
             }
         });
         if (detail.vacantDays > 0) {
-            text += '  - 공실 ' + detail.vacantDays + '일 (거주자 분담)\n';
+            text += '  - 공실 (운영자): ' + formatCurrency(roundTo10(detail.vacantCost)) + ' (' + detail.vacantDays + '일)\n';
         }
     });
 
