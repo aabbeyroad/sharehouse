@@ -65,6 +65,37 @@ body {
     margin-bottom: 32px;
 }
 
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    position: relative;
+}
+
+.btn-icon-only {
+    position: absolute;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon-only:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
 .logo {
     font-size: 32px;
     font-weight: 800;
@@ -300,6 +331,27 @@ body {
     background: var(--border);
 }
 
+/* 예시 데이터 버튼 */
+.btn-sample {
+    margin-top: 8px;
+    padding: 8px 16px;
+    background: none;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.btn-sample:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.btn-group {
+    display: flex;
+    flex-direction: column;
+}
+
 /* 링크 스타일 버튼 */
 .btn-link {
     background: none;
@@ -313,7 +365,28 @@ body {
 }
 
 .btn-link:hover {
+    color: var(--primary);
+}
+
+.btn-link--danger:hover {
     color: var(--danger);
+}
+
+/* 파일 입력 숨기기 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.import-label {
+    cursor: pointer;
 }
 
 /* --- 결과 영역 --- */
@@ -476,6 +549,68 @@ body {
     color: #92400E;
 }
 
+/* 송금 안내 섹션 */
+.transfer-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--success-light);
+    border: 1px solid #A7F3D0;
+    border-radius: var(--radius-sm);
+}
+
+.transfer-section h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--success);
+    margin-bottom: 4px;
+}
+
+.transfer-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.transfer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.transfer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: var(--shadow);
+}
+
+.transfer-from {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.transfer-arrow {
+    color: var(--success);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.transfer-to {
+    font-weight: 600;
+    color: var(--success);
+}
+
+.transfer-amount {
+    margin-left: auto;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--primary);
+}
+
 /* 반올림 안내 */
 .rounding-note {
     margin-top: 12px;
@@ -526,6 +661,13 @@ body {
     color: var(--text-muted);
 }
 
+.footer-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
 /* --- 유효성 검증 에러 --- */
 .field--error input,
 .field--error select {
@@ -546,9 +688,27 @@ body {
     border: 1px solid #FECACA;
 }
 
+/* --- 포커스 스타일 (접근성) --- */
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
 /* --- 애니메이션 --- */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
@@ -557,7 +717,11 @@ body {
 }
 
 #results-section {
-    animation: fadeIn 0.4s ease;
+    animation: slideUp 0.4s ease;
+}
+
+.form-item {
+    animation: fadeIn 0.2s ease;
 }
 
 /* --- 반응형: 모바일 (768px 이하) --- */
@@ -632,6 +796,54 @@ body {
         width: 100%;
         justify-content: space-between;
     }
+}
+
+/* --- 다크모드 --- */
+[data-theme="dark"] {
+    --primary: #60A5FA;
+    --primary-hover: #93C5FD;
+    --primary-light: #1E293B;
+    --bg: #0F172A;
+    --card-bg: #1E293B;
+    --text: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --border: #334155;
+    --border-focus: #60A5FA;
+    --success: #34D399;
+    --success-light: #064E3B;
+    --danger: #F87171;
+    --danger-light: #450A0A;
+    --warning: #FBBF24;
+    --warning-light: #451A03;
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .form-item {
+    background: #0F172A;
+}
+
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select {
+    background: #0F172A;
+    color: var(--text);
+}
+
+[data-theme="dark"] .transfer-section {
+    border-color: #065F46;
+}
+
+[data-theme="dark"] .vacant-warning {
+    border-color: #92400E;
+}
+
+[data-theme="dark"] .detail-row:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .error-message {
+    border-color: #991B1B;
 }
 
 /* --- 인쇄 스타일 --- */

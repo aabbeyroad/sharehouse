@@ -247,12 +247,61 @@ function calculate() {
         details.push(expenseDetail);
     });
 
+    // ─── 송금 정산 계산 ───
+    // 각 입주자의 부담액과 평균을 비교하여 누가 누구에게 보내야 하는지 계산
+    var transfers = calculateTransfers(results);
+
     return {
         results: results,
         details: details,
         totalExpense: totalExpense,
-        totalVacantCost: totalVacantCost
+        totalVacantCost: totalVacantCost,
+        transfers: transfers
     };
+}
+
+/**
+ * 최적화된 송금 정산을 계산합니다.
+ * 각 입주자가 부담해야 할 금액과 실제 지불한 금액의 차이를 기반으로
+ * 최소 횟수의 송금으로 정산할 수 있는 방법을 계산합니다.
+ *
+ * 여기서는 "1명이 전체 비용을 대납한 경우"를 가정합니다.
+ * 지정된 대납자(또는 첫 번째 입주자)에게 각자 자기 몫을 보내면 됩니다.
+ *
+ * @returns {Array} [{from: string, to: string, amount: number}]
+ */
+function calculateTransfers(results) {
+    var residentIds = Object.keys(results);
+    if (residentIds.length <= 1) return [];
+
+    // 각 입주자의 10원 단위 반올림된 부담액 수집
+    var shares = [];
+    residentIds.forEach(function(id) {
+        var r = results[id];
+        shares.push({
+            id: id,
+            name: r.name,
+            amount: roundTo10(r.total)
+        });
+    });
+
+    // 부담액이 가장 큰 사람 = 대납자로 가정
+    // (일반적으로 쉐어하우스에서 집주인이나 관리자가 대납)
+    shares.sort(function(a, b) { return b.amount - a.amount; });
+    var payee = shares[0]; // 대납자
+
+    var transfers = [];
+    for (var i = 1; i < shares.length; i++) {
+        if (shares[i].amount > 0) {
+            transfers.push({
+                from: shares[i].name,
+                to: payee.name,
+                amount: shares[i].amount
+            });
+        }
+    }
+
+    return transfers;
 }
 
 // ========================================
@@ -271,7 +320,7 @@ function renderResidents() {
         var div = document.createElement('div');
         div.className = 'form-item form-item--resident';
         div.innerHTML =
-            '<button type="button" class="btn-delete" data-type="resident" data-id="' + resident.id + '" title="삭제">&times;</button>' +
+            '<button type="button" class="btn-delete" data-type="resident" data-id="' + resident.id + '" title="' + escapeHtml(resident.name || '입주자') + ' 삭제" aria-label="' + escapeHtml(resident.name || '입주자') + ' 삭제">&times;</button>' +
             '<div class="field">' +
                 '<label>이름</label>' +
                 '<input type="text" value="' + escapeHtml(resident.name) + '" placeholder="예: 홍길동" data-field="name" data-id="' + resident.id + '" data-type="resident">' +
@@ -315,7 +364,7 @@ function renderExpenses() {
         var isPreset = presets.indexOf(expense.name) !== -1;
 
         div.innerHTML =
-            '<button type="button" class="btn-delete" data-type="expense" data-id="' + expense.id + '" title="삭제">&times;</button>' +
+            '<button type="button" class="btn-delete" data-type="expense" data-id="' + expense.id + '" title="' + escapeHtml(expense.name || '비용') + ' 삭제" aria-label="' + escapeHtml(expense.name || '비용') + ' 삭제">&times;</button>' +
             '<div class="field">' +
                 '<label>항목</label>' +
                 (isPreset
@@ -419,6 +468,24 @@ function renderResults(calcResult) {
     });
 
     html += '</div>'; // result-detail
+
+    // ─── 송금 안내 ───
+    if (calcResult.transfers && calcResult.transfers.length > 0) {
+        html += '<div class="transfer-section">';
+        html += '<h3>송금 안내</h3>';
+        html += '<p class="transfer-desc">각자 부담할 금액을 아래와 같이 송금하면 정산이 완료됩니다.</p>';
+        html += '<div class="transfer-list">';
+        calcResult.transfers.forEach(function(t) {
+            html += '<div class="transfer-item">';
+            html += '<span class="transfer-from">' + escapeHtml(t.from) + '</span>';
+            html += '<span class="transfer-arrow">&rarr;</span>';
+            html += '<span class="transfer-to">' + escapeHtml(t.to) + '</span>';
+            html += '<span class="transfer-amount">' + formatCurrency(t.amount) + '</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        html += '</div>';
+    }
 
     // 반올림 안내
     html += '<div class="rounding-note">※ 모든 금액은 10원 단위로 반올림되었습니다.</div>';
@@ -637,6 +704,14 @@ function copyResults() {
         }
     });
 
+    // 송금 안내
+    if (result.transfers && result.transfers.length > 0) {
+        text += '\n💸 송금 안내\n';
+        result.transfers.forEach(function(t) {
+            text += '  ' + t.from + ' → ' + t.to + ': ' + formatCurrency(t.amount) + '\n';
+        });
+    }
+
     text += '\n※ 10원 단위 반올림 적용';
 
     // 클립보드에 복사
@@ -678,6 +753,119 @@ function showToast(message) {
     setTimeout(function() {
         toast.classList.remove('toast--visible');
     }, 2500);
+}
+
+/**
+ * 예시 데이터를 로드합니다.
+ * 처음 사용하는 사람이 기능을 이해할 수 있도록 도와줍니다.
+ */
+function loadSampleData() {
+    if (state.residents.some(function(r) { return r.name.trim(); }) ||
+        state.expenses.some(function(e) { return e.name.trim(); })) {
+        if (!confirm('현재 입력된 데이터가 예시 데이터로 대체됩니다. 계속하시겠습니까?')) {
+            return;
+        }
+    }
+
+    state.residents = [
+        { id: generateId(), name: '김민수', moveInDate: '2025-12-01', moveOutDate: '' },
+        { id: generateId(), name: '이영희', moveInDate: '2026-01-10', moveOutDate: '' },
+        { id: generateId(), name: '박지훈', moveInDate: '2025-12-01', moveOutDate: '2026-01-31' }
+    ];
+    state.expenses = [
+        { id: generateId(), name: '전기세', amount: 85000, startDate: '2026-01-01', endDate: '2026-01-31' },
+        { id: generateId(), name: '가스비', amount: 42000, startDate: '2026-01-01', endDate: '2026-01-31' },
+        { id: generateId(), name: '인터넷', amount: 33000, startDate: '2026-01-01', endDate: '2026-01-31' }
+    ];
+
+    renderResidents();
+    renderExpenses();
+    saveToStorage();
+    document.getElementById('results-section').style.display = 'none';
+    showToast('예시 데이터가 로드되었습니다. 정산하기를 눌러보세요!');
+}
+
+/**
+ * 다크모드 토글
+ */
+function toggleDarkMode() {
+    var html = document.documentElement;
+    var isDark = html.getAttribute('data-theme') === 'dark';
+    var newTheme = isDark ? 'light' : 'dark';
+    html.setAttribute('data-theme', newTheme);
+    document.getElementById('dark-mode-icon').innerHTML = isDark ? '&#9790;' : '&#9728;';
+    try {
+        localStorage.setItem('sharecalc_theme', newTheme);
+    } catch (e) {}
+}
+
+/**
+ * 저장된 테마 적용
+ */
+function loadTheme() {
+    try {
+        var theme = localStorage.getItem('sharecalc_theme');
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('dark-mode-icon').innerHTML = '&#9728;';
+        } else if (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('dark-mode-icon').innerHTML = '&#9728;';
+        }
+    } catch (e) {}
+}
+
+/**
+ * 데이터를 JSON 파일로 내보냅니다.
+ */
+function exportData() {
+    var data = {
+        version: 1,
+        exportDate: new Date().toISOString(),
+        residents: state.residents,
+        expenses: state.expenses
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'sharecalc_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('데이터가 내보내기되었습니다.');
+}
+
+/**
+ * JSON 파일에서 데이터를 가져옵니다.
+ */
+function importData(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = JSON.parse(e.target.result);
+            if (!data.residents || !data.expenses) {
+                showToast('올바른 ShareCalc 데이터 파일이 아닙니다.');
+                return;
+            }
+            state.residents = data.residents;
+            state.expenses = data.expenses;
+            state.nextId = Math.max.apply(null,
+                state.residents.map(function(r) { return r.id; })
+                    .concat(state.expenses.map(function(e) { return e.id; }))
+                    .concat([0])
+            ) + 1;
+            renderResidents();
+            renderExpenses();
+            saveToStorage();
+            document.getElementById('results-section').style.display = 'none';
+            showToast('데이터를 성공적으로 가져왔습니다.');
+        } catch (err) {
+            showToast('파일을 읽는 중 오류가 발생했습니다.');
+        }
+    };
+    reader.readAsText(file);
 }
 
 /**
@@ -764,6 +952,23 @@ function initEvents() {
     // 데이터 초기화 버튼
     document.getElementById('reset-btn').addEventListener('click', resetData);
 
+    // 예시 데이터 버튼
+    document.getElementById('sample-data-btn').addEventListener('click', loadSampleData);
+
+    // 다크모드 토글
+    document.getElementById('dark-mode-btn').addEventListener('click', toggleDarkMode);
+
+    // 데이터 내보내기
+    document.getElementById('export-btn').addEventListener('click', exportData);
+
+    // 데이터 가져오기
+    document.getElementById('import-input').addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            importData(e.target.files[0]);
+            e.target.value = ''; // 같은 파일 다시 선택 가능하도록
+        }
+    });
+
     // ─── 이벤트 위임: 삭제 버튼 ───
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('.btn-delete');
@@ -793,6 +998,9 @@ function initEvents() {
  * 앱 시작점
  */
 function init() {
+    // 테마 로드
+    loadTheme();
+
     // 저장된 데이터 불러오기
     loadFromStorage();
 

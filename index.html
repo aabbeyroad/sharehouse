@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +16,12 @@
     <div class="container">
         <!-- 헤더: 서비스 브랜딩 -->
         <header class="header">
-            <h1 class="logo">ShareCalc</h1>
+            <div class="header-top">
+                <h1 class="logo">ShareCalc</h1>
+                <button type="button" class="btn-icon-only" id="dark-mode-btn" title="다크모드 전환" aria-label="다크모드 전환">
+                    <span id="dark-mode-icon">&#9790;</span>
+                </button>
+            </div>
             <p class="subtitle">쉐어하우스 공용비용 정산기</p>
         </header>
 
@@ -24,28 +29,33 @@
             <!-- ============================================ -->
             <!-- 1단계: 입주자 정보 입력 -->
             <!-- ============================================ -->
-            <section class="card">
+            <section class="card" aria-labelledby="step1-title">
                 <div class="card-header">
-                    <span class="step-badge">1</span>
-                    <h2>입주자 정보</h2>
+                    <span class="step-badge" aria-hidden="true">1</span>
+                    <h2 id="step1-title">입주자 정보</h2>
                 </div>
                 <p class="card-desc">이름과 거주 기간을 입력하세요. 현재 거주 중이면 퇴실일을 비워두세요.</p>
 
                 <!-- 입주자 목록이 여기에 동적으로 렌더링됩니다 -->
                 <div id="residents-list" class="form-list"></div>
 
-                <button type="button" class="btn btn-add" id="add-resident-btn">
-                    <span class="btn-icon">+</span> 입주자 추가
-                </button>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-add" id="add-resident-btn">
+                        <span class="btn-icon">+</span> 입주자 추가
+                    </button>
+                    <button type="button" class="btn btn-sample" id="sample-data-btn" title="예시 데이터로 채우기">
+                        예시 데이터
+                    </button>
+                </div>
             </section>
 
             <!-- ============================================ -->
             <!-- 2단계: 공용비용 입력 -->
             <!-- ============================================ -->
-            <section class="card">
+            <section class="card" aria-labelledby="step2-title">
                 <div class="card-header">
-                    <span class="step-badge">2</span>
-                    <h2>공용비용 입력</h2>
+                    <span class="step-badge" aria-hidden="true">2</span>
+                    <h2 id="step2-title">공용비용 입력</h2>
                 </div>
                 <p class="card-desc">항목별 금액과 청구 기간을 입력하세요. 항목마다 청구 기간이 달라도 됩니다.</p>
 
@@ -65,10 +75,10 @@
             <!-- ============================================ -->
             <!-- 3단계: 정산 결과 -->
             <!-- ============================================ -->
-            <section class="card" id="results-section" style="display: none;">
+            <section class="card" id="results-section" style="display: none;" aria-labelledby="step3-title" aria-live="polite">
                 <div class="card-header">
-                    <span class="step-badge step-badge--success">3</span>
-                    <h2>정산 결과</h2>
+                    <span class="step-badge step-badge--success" aria-hidden="true">3</span>
+                    <h2 id="step3-title">정산 결과</h2>
                 </div>
 
                 <!-- 결과가 여기에 동적으로 렌더링됩니다 -->
@@ -86,7 +96,14 @@
         <!-- 하단 푸터 -->
         <footer class="footer">
             <p>&copy; 2026 ShareCalc &middot; 쉐어하우스 운영을 더 쉽게</p>
-            <button type="button" class="btn-link" id="reset-btn">데이터 초기화</button>
+            <div class="footer-actions">
+                <button type="button" class="btn-link" id="export-btn">데이터 내보내기</button>
+                <label class="btn-link import-label" tabindex="0" role="button">
+                    데이터 가져오기
+                    <input type="file" accept=".json" id="import-input" class="sr-only">
+                </label>
+                <button type="button" class="btn-link btn-link--danger" id="reset-btn">데이터 초기화</button>
+            </div>
         </footer>
     </div>
 
