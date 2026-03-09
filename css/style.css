@@ -166,6 +166,123 @@ body {
     color: var(--primary);
 }
 
+/* --- 지점 선택 바 --- */
+.house-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.house-selector__list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.house-selector__list::-webkit-scrollbar {
+    display: none;
+}
+
+.house-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text-secondary);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.house-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.house-btn--active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.house-btn--active:hover {
+    background: var(--primary-hover);
+    color: #fff;
+}
+
+.house-btn__actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.house-btn--active .house-btn__actions {
+    display: flex;
+}
+
+.house-btn__action {
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.house-btn__action:hover {
+    background: rgba(255,255,255,0.45);
+}
+
+.house-selector__add {
+    width: 32px;
+    height: 32px;
+    border: 2px dashed var(--border);
+    background: none;
+    color: var(--text-muted);
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: 400;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.house-selector__add:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
 /* --- 탭 네비게이션 --- */
 .tabs {
     display: flex;
@@ -1045,13 +1162,31 @@ button:focus-visible,
     border-color: #991B1B;
 }
 
+[data-theme="dark"] .house-btn {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+[data-theme="dark"] .house-btn:hover {
+    background: #1E3A5F;
+    border-color: #3B82F6;
+    color: #60A5FA;
+}
+
+[data-theme="dark"] .house-btn--active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
 /* --- 인쇄 스타일 --- */
 @media print {
     body {
         background: #fff;
     }
 
-    .btn, .btn-add, .btn-calculate, .results-actions, .footer, .btn-delete, .auth-screen, .tabs, .header-actions {
+    .btn, .btn-add, .btn-calculate, .results-actions, .footer, .btn-delete, .auth-screen, .tabs, .header-actions, .house-selector {
         display: none !important;
     }
 

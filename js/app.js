@@ -22,7 +22,14 @@
 // 현재 로그인된 프로필
 var currentProfile = null;
 
+// 현재 선택된 지점(하우스) ID
+var currentHouseId = null;
+
+// 모든 지점(하우스) 목록
+var houses = [];
+
 // 앱의 모든 데이터는 이 state 객체에 저장됩니다.
+// 현재 선택된 지점의 데이터를 가리킵니다.
 let state = {
     residents: [],
     expenses: [],
@@ -670,7 +677,10 @@ function copyResults() {
     var text = '';
 
     // ─── 복사용 텍스트 포맷 ───
-    text += '📊 쉐어하우스 공용비용 정산\n';
+    var currentHouse = houses.find(function(h) { return h.id === currentHouseId; });
+    text += '📊 쉐어하우스 공용비용 정산';
+    if (currentHouse) text += ' [' + currentHouse.name + ']';
+    text += '\n';
     text += '━━━━━━━━━━━━━━━\n';
     text += '💰 총 비용: ' + formatCurrency(result.totalExpense) + '\n\n';
 
@@ -816,9 +826,12 @@ function loadTheme() {
  * 데이터를 JSON 파일로 내보냅니다.
  */
 function exportData() {
+    var currentHouse = houses.find(function(h) { return h.id === currentHouseId; });
+    var houseName = currentHouse ? currentHouse.name : '';
     var data = {
         version: 1,
         exportDate: new Date().toISOString(),
+        houseName: houseName,
         residents: state.residents,
         expenses: state.expenses
     };
@@ -869,7 +882,10 @@ function importData(file) {
  * 데이터 초기화
  */
 function resetData() {
-    if (!confirm('모든 데이터를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+    var houseName = '';
+    var currentHouse = houses.find(function(h) { return h.id === currentHouseId; });
+    if (currentHouse) houseName = ' (' + currentHouse.name + ')';
+    if (!confirm('현재 지점' + houseName + '의 입주자/비용 데이터를 초기화하시겠습니까?\n정산 이력은 유지됩니다. 이 작업은 되돌릴 수 없습니다.')) {
         return;
     }
     var savedHistory = state.history || [];
@@ -972,6 +988,8 @@ function activateProfile(profile) {
  */
 function logOut() {
     currentProfile = null;
+    currentHouseId = null;
+    houses = [];
     try {
         localStorage.removeItem('sharecalc_current');
     } catch (e) {}
@@ -1019,6 +1037,156 @@ function toggleAuthMode() {
     }
     var errEl = document.getElementById('auth-error');
     if (errEl) errEl.textContent = '';
+}
+
+// ========================================
+// 지점(하우스) 관리
+// ========================================
+
+/**
+ * 지점을 추가합니다.
+ */
+function addHouse() {
+    var name = prompt('새 지점 이름을 입력하세요:');
+    if (!name || !name.trim()) return;
+
+    var house = {
+        id: Date.now().toString(36),
+        name: name.trim(),
+        residents: [],
+        expenses: [],
+        history: [],
+        nextId: 1
+    };
+    houses.push(house);
+    switchHouse(house.id);
+    saveAllHouses();
+    renderHouseSelector();
+}
+
+/**
+ * 지점 이름을 변경합니다.
+ */
+function renameHouse(houseId) {
+    var house = houses.find(function(h) { return h.id === houseId; });
+    if (!house) return;
+
+    var newName = prompt('지점 이름을 변경합니다:', house.name);
+    if (!newName || !newName.trim()) return;
+
+    house.name = newName.trim();
+    saveAllHouses();
+    renderHouseSelector();
+}
+
+/**
+ * 지점을 삭제합니다.
+ */
+function deleteHouse(houseId) {
+    if (houses.length <= 1) {
+        showToast('최소 1개의 지점이 필요합니다.');
+        return;
+    }
+    var house = houses.find(function(h) { return h.id === houseId; });
+    if (!house) return;
+
+    if (!confirm('"' + house.name + '" 지점을 삭제하시겠습니까?\n해당 지점의 모든 데이터가 삭제됩니다.')) return;
+
+    houses = houses.filter(function(h) { return h.id !== houseId; });
+    if (currentHouseId === houseId) {
+        switchHouse(houses[0].id);
+    }
+    saveAllHouses();
+    renderHouseSelector();
+}
+
+/**
+ * 지점을 전환합니다.
+ */
+function switchHouse(houseId) {
+    // 현재 지점 데이터 저장
+    saveCurrentHouseData();
+
+    currentHouseId = houseId;
+    var house = houses.find(function(h) { return h.id === houseId; });
+    if (!house) return;
+
+    // 해당 지점의 데이터를 state에 로드
+    state.residents = house.residents || [];
+    state.expenses = house.expenses || [];
+    state.history = house.history || [];
+    state.nextId = house.nextId || 1;
+    state.lastResult = null;
+
+    // UI 갱신
+    if (state.residents.length === 0) {
+        state.residents.push({ id: generateId(), name: '', moveInDate: '', moveOutDate: '' });
+    }
+    if (state.expenses.length === 0) {
+        state.expenses.push({ id: generateId(), name: '', amount: 0, startDate: '', endDate: '' });
+    }
+
+    renderResidents();
+    renderExpenses();
+    document.getElementById('results-section').style.display = 'none';
+    renderHouseSelector();
+    saveAllHouses();
+
+    // 정산기 탭으로 전환
+    switchTab('calculator');
+}
+
+/**
+ * 현재 선택된 지점에 state 데이터를 저장합니다.
+ */
+function saveCurrentHouseData() {
+    if (!currentHouseId) return;
+    var house = houses.find(function(h) { return h.id === currentHouseId; });
+    if (!house) return;
+
+    house.residents = state.residents;
+    house.expenses = state.expenses;
+    house.history = state.history;
+    house.nextId = state.nextId;
+}
+
+/**
+ * 모든 지점 데이터를 localStorage에 저장합니다.
+ */
+function saveAllHouses() {
+    if (!currentProfile) return;
+    saveCurrentHouseData();
+    try {
+        var data = {
+            houses: houses,
+            currentHouseId: currentHouseId
+        };
+        localStorage.setItem('sharecalc_data_' + currentProfile.id, JSON.stringify(data));
+    } catch (e) {}
+}
+
+/**
+ * 지점 선택 UI를 렌더링합니다.
+ */
+function renderHouseSelector() {
+    var container = document.getElementById('house-list');
+    if (!container) return;
+
+    var html = '';
+    houses.forEach(function(house) {
+        var isActive = house.id === currentHouseId;
+        html += '<button type="button" class="house-btn' + (isActive ? ' house-btn--active' : '') + '" data-house-id="' + house.id + '">';
+        html += escapeHtml(house.name);
+        if (isActive) {
+            html += '<span class="house-btn__actions">';
+            html += '<button type="button" class="house-btn__action" data-house-rename="' + house.id + '" title="이름 변경">&#9998;</button>';
+            html += '<button type="button" class="house-btn__action" data-house-delete="' + house.id + '" title="삭제">&times;</button>';
+            html += '</span>';
+        }
+        html += '</button>';
+    });
+
+    container.innerHTML = html;
 }
 
 // ========================================
@@ -1156,20 +1324,12 @@ function switchTab(tabName) {
  * 프로필별로 별도의 키를 사용합니다.
  */
 function saveToStorage() {
-    if (!currentProfile) return;
-    try {
-        var data = {
-            residents: state.residents,
-            expenses: state.expenses,
-            history: state.history,
-            nextId: state.nextId
-        };
-        localStorage.setItem('sharecalc_data_' + currentProfile.id, JSON.stringify(data));
-    } catch (e) {}
+    saveAllHouses();
 }
 
 /**
  * 브라우저에 저장된 데이터를 불러옵니다.
+ * 기존 단일 하우스 데이터 형식도 자동으로 마이그레이션합니다.
  */
 function loadFromStorage() {
     if (!currentProfile) return;
@@ -1177,14 +1337,59 @@ function loadFromStorage() {
         var raw = localStorage.getItem('sharecalc_data_' + currentProfile.id);
         if (raw) {
             var data = JSON.parse(raw);
-            state.residents = data.residents || [];
-            state.expenses = data.expenses || [];
-            state.history = data.history || [];
-            state.nextId = data.nextId || 1;
+
+            // 새 형식: houses 배열이 있는 경우
+            if (data.houses && Array.isArray(data.houses)) {
+                houses = data.houses;
+                currentHouseId = data.currentHouseId || (houses.length > 0 ? houses[0].id : null);
+            } else {
+                // 기존 형식: 단일 데이터 → 마이그레이션
+                var defaultHouse = {
+                    id: Date.now().toString(36),
+                    name: '지점 1',
+                    residents: data.residents || [],
+                    expenses: data.expenses || [],
+                    history: data.history || [],
+                    nextId: data.nextId || 1
+                };
+                houses = [defaultHouse];
+                currentHouseId = defaultHouse.id;
+            }
+        } else {
+            // 데이터 없음: 기본 지점 생성
+            var newHouse = {
+                id: Date.now().toString(36),
+                name: '지점 1',
+                residents: [],
+                expenses: [],
+                history: [],
+                nextId: 1
+            };
+            houses = [newHouse];
+            currentHouseId = newHouse.id;
+        }
+
+        // 현재 지점의 데이터를 state에 로드
+        var currentHouse = houses.find(function(h) { return h.id === currentHouseId; });
+        if (currentHouse) {
+            state.residents = currentHouse.residents || [];
+            state.expenses = currentHouse.expenses || [];
+            state.history = currentHouse.history || [];
+            state.nextId = currentHouse.nextId || 1;
         } else {
             state = { residents: [], expenses: [], history: [], nextId: 1 };
         }
     } catch (e) {
+        var fallbackHouse = {
+            id: Date.now().toString(36),
+            name: '지점 1',
+            residents: [],
+            expenses: [],
+            history: [],
+            nextId: 1
+        };
+        houses = [fallbackHouse];
+        currentHouseId = fallbackHouse.id;
         state = { residents: [], expenses: [], history: [], nextId: 1 };
     }
 }
@@ -1238,6 +1443,9 @@ function initEvents() {
         if (e.key === 'Enter') document.getElementById('signup-submit').click();
     });
 
+    // ─── 지점 관리 ───
+    document.getElementById('add-house-btn').addEventListener('click', addHouse);
+
     // ─── 탭 전환 ───
     document.getElementById('tab-calculator').addEventListener('click', function() { switchTab('calculator'); });
     document.getElementById('tab-history').addEventListener('click', function() { switchTab('history'); });
@@ -1274,8 +1482,31 @@ function initEvents() {
         }
     });
 
-    // ─── 이벤트 위임: 삭제 버튼 & 이력 버튼 ───
+    // ─── 이벤트 위임: 삭제 버튼 & 이력 버튼 & 지점 버튼 ───
     document.addEventListener('click', function(e) {
+        // 지점 이름 변경
+        var renameBtn = e.target.closest('[data-house-rename]');
+        if (renameBtn) {
+            e.stopPropagation();
+            renameHouse(renameBtn.dataset.houseRename);
+            return;
+        }
+
+        // 지점 삭제
+        var delHouseBtn = e.target.closest('[data-house-delete]');
+        if (delHouseBtn) {
+            e.stopPropagation();
+            deleteHouse(delHouseBtn.dataset.houseDelete);
+            return;
+        }
+
+        // 지점 전환
+        var houseBtn = e.target.closest('.house-btn');
+        if (houseBtn && houseBtn.dataset.houseId) {
+            switchHouse(houseBtn.dataset.houseId);
+            return;
+        }
+
         var btn = e.target.closest('.btn-delete');
         if (btn) {
             if (btn.dataset.historyIndex !== undefined) {
@@ -1348,6 +1579,7 @@ function initApp() {
         state.expenses.push({ id: generateId(), name: '', amount: 0, startDate: '', endDate: '' });
     }
 
+    renderHouseSelector();
     renderResidents();
     renderExpenses();
 }
