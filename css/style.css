@@ -59,10 +59,274 @@ body {
     padding: 32px 16px;
 }
 
+/* --- 인증 화면 --- */
+.auth-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 16px;
+    background: var(--bg);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 40px 32px;
+    box-shadow: var(--shadow-md);
+    text-align: center;
+    animation: fadeIn 0.4s ease;
+}
+
+.auth-card .logo {
+    margin-bottom: 4px;
+}
+
+.auth-card .subtitle {
+    margin-bottom: 24px;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+
+.auth-submit {
+    width: 100%;
+    padding: 12px;
+    margin-top: 4px;
+}
+
+.auth-toggle {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.auth-error {
+    color: var(--danger);
+    font-size: 13px;
+    min-height: 20px;
+    text-align: center;
+}
+
 /* --- 헤더 --- */
 .header {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 12px;
+}
+
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-badge {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 4px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.btn-icon-only {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.btn-icon-only:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* --- 지점 선택 바 --- */
+.house-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.house-selector__list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.house-selector__list::-webkit-scrollbar {
+    display: none;
+}
+
+.house-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text-secondary);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.house-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.house-btn--active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.house-btn--active:hover {
+    background: var(--primary-hover);
+    color: #fff;
+}
+
+.house-btn__actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.house-btn--active .house-btn__actions {
+    display: flex;
+}
+
+.house-btn__action {
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.house-btn__action:hover {
+    background: rgba(255,255,255,0.45);
+}
+
+.house-selector__add {
+    width: 32px;
+    height: 32px;
+    border: 2px dashed var(--border);
+    background: none;
+    color: var(--text-muted);
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: 400;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.house-selector__add:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+/* --- 탭 네비게이션 --- */
+.tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.tab {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.tab:hover {
+    color: var(--text-secondary);
+    background: var(--bg);
+}
+
+.tab--active {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.tab--active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--primary);
+    border-radius: 3px 3px 0 0;
 }
 
 .logo {
@@ -300,6 +564,27 @@ body {
     background: var(--border);
 }
 
+/* 예시 데이터 버튼 */
+.btn-sample {
+    margin-top: 8px;
+    padding: 8px 16px;
+    background: none;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.btn-sample:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.btn-group {
+    display: flex;
+    flex-direction: column;
+}
+
 /* 링크 스타일 버튼 */
 .btn-link {
     background: none;
@@ -313,7 +598,28 @@ body {
 }
 
 .btn-link:hover {
+    color: var(--primary);
+}
+
+.btn-link--danger:hover {
     color: var(--danger);
+}
+
+/* 파일 입력 숨기기 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.import-label {
+    cursor: pointer;
 }
 
 /* --- 결과 영역 --- */
@@ -458,7 +764,7 @@ body {
     text-align: right;
 }
 
-/* 공실 비용 경고 */
+/* 공실 비용 경고 (0명인 날 = 운영자 부담) */
 .vacant-warning {
     display: flex;
     align-items: center;
@@ -472,8 +778,75 @@ body {
     color: var(--warning);
 }
 
+.vacant-warning__icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
 .vacant-warning strong {
     color: #92400E;
+}
+
+/* 송금 안내 섹션 */
+.transfer-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--success-light);
+    border: 1px solid #A7F3D0;
+    border-radius: var(--radius-sm);
+}
+
+.transfer-section h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--success);
+    margin-bottom: 4px;
+}
+
+.transfer-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.transfer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.transfer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: var(--shadow);
+}
+
+.transfer-from {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.transfer-arrow {
+    color: var(--success);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.transfer-to {
+    font-weight: 600;
+    color: var(--success);
+}
+
+.transfer-amount {
+    margin-left: auto;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--primary);
 }
 
 /* 반올림 안내 */
@@ -483,6 +856,71 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
+}
+
+/* --- 정산 이력 --- */
+.history-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 32px 16px;
+}
+
+.history-item {
+    padding: 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.history-item__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.history-item__date {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.history-item__total {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--primary);
+}
+
+.history-item__people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.history-chip {
+    font-size: 12px;
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.history-load-btn {
+    font-size: 12px;
+}
+
+.btn-delete--small {
+    position: static;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    margin-left: auto;
 }
 
 /* --- 토스트 알림 --- */
@@ -526,6 +964,13 @@ body {
     color: var(--text-muted);
 }
 
+.footer-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
 /* --- 유효성 검증 에러 --- */
 .field--error input,
 .field--error select {
@@ -546,9 +991,27 @@ body {
     border: 1px solid #FECACA;
 }
 
+/* --- 포커스 스타일 (접근성) --- */
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
 /* --- 애니메이션 --- */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
@@ -557,7 +1020,11 @@ body {
 }
 
 #results-section {
-    animation: fadeIn 0.4s ease;
+    animation: slideUp 0.4s ease;
+}
+
+.form-item {
+    animation: fadeIn 0.2s ease;
 }
 
 /* --- 반응형: 모바일 (768px 이하) --- */
@@ -572,7 +1039,12 @@ body {
     }
 
     .logo {
-        font-size: 26px;
+        font-size: 22px;
+    }
+
+    .user-badge {
+        font-size: 11px;
+        padding: 3px 8px;
     }
 
     .card {
@@ -634,13 +1106,87 @@ body {
     }
 }
 
+/* --- 다크모드 --- */
+[data-theme="dark"] {
+    --primary: #60A5FA;
+    --primary-hover: #93C5FD;
+    --primary-light: #1E293B;
+    --bg: #0F172A;
+    --card-bg: #1E293B;
+    --text: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --border: #334155;
+    --border-focus: #60A5FA;
+    --success: #34D399;
+    --success-light: #064E3B;
+    --danger: #F87171;
+    --danger-light: #450A0A;
+    --warning: #FBBF24;
+    --warning-light: #451A03;
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .form-item {
+    background: #0F172A;
+}
+
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select {
+    background: #0F172A;
+    color: var(--text);
+}
+
+[data-theme="dark"] .transfer-section {
+    border-color: #065F46;
+}
+
+[data-theme="dark"] .vacant-warning {
+    border-color: #92400E;
+}
+
+[data-theme="dark"] .vacant-warning strong {
+    color: var(--warning);
+}
+
+[data-theme="dark"] .history-item {
+    background: #0F172A;
+}
+
+[data-theme="dark"] .detail-row:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .error-message {
+    border-color: #991B1B;
+}
+
+[data-theme="dark"] .house-btn {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+[data-theme="dark"] .house-btn:hover {
+    background: #1E3A5F;
+    border-color: #3B82F6;
+    color: #60A5FA;
+}
+
+[data-theme="dark"] .house-btn--active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
 /* --- 인쇄 스타일 --- */
 @media print {
     body {
         background: #fff;
     }
 
-    .btn, .btn-add, .btn-calculate, .results-actions, .footer, .btn-delete {
+    .btn, .btn-add, .btn-calculate, .results-actions, .footer, .btn-delete, .auth-screen, .tabs, .header-actions, .house-selector {
         display: none !important;
     }
 
