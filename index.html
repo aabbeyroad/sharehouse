@@ -12,6 +12,7 @@
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -49,6 +50,23 @@
                     <h2>공용비용 입력</h2>
                 </div>
                 <p class="card-desc">항목별 금액과 청구 기간을 입력하세요. 항목마다 청구 기간이 달라도 됩니다.</p>
+
+                <!-- 영수증/청구서 업로드 영역 -->
+                <div class="ocr-upload" id="ocr-upload-area">
+                    <input type="file" id="ocr-file-input" accept="image/*" multiple hidden>
+                    <div class="ocr-upload__dropzone" id="ocr-dropzone">
+                        <div class="ocr-upload__icon">&#128247;</div>
+                        <p class="ocr-upload__text">영수증·청구서 이미지를 여기에 드래그하거나 클릭하여 업로드</p>
+                        <p class="ocr-upload__hint">이미지에서 항목명, 금액, 청구기간을 자동으로 인식합니다</p>
+                    </div>
+                    <div class="ocr-progress" id="ocr-progress" style="display:none;">
+                        <div class="ocr-progress__bar">
+                            <div class="ocr-progress__fill" id="ocr-progress-fill"></div>
+                        </div>
+                        <p class="ocr-progress__text" id="ocr-progress-text">이미지 분석 중...</p>
+                    </div>
+                    <div class="ocr-preview-list" id="ocr-preview-list"></div>
+                </div>
 
                 <!-- 비용 항목 목록이 여기에 동적으로 렌더링됩니다 -->
                 <div id="expenses-list" class="form-list"></div>
