@@ -9,8 +9,9 @@
 // 3. 핵심 계산 로직 - 일할 비용 분담 엔진
 // 4. UI 렌더링 - 화면 표시
 // 5. 이벤트 핸들러 - 사용자 상호작용
-// 6. 데이터 저장/불러오기 - localStorage
-// 7. 초기화 - 앱 시작
+// 6. OCR 영수증/청구서 인식
+// 7. 데이터 저장/불러오기 - localStorage
+// 8. 초기화 - 앱 시작
 // ========================================
 
 'use strict';
@@ -423,6 +424,27 @@ function renderResults(calcResult) {
     // 반올림 안내
     html += '<div class="rounding-note">※ 모든 금액은 10원 단위로 반올림되었습니다.</div>';
 
+    // ─── 송금안내 (맨 아래) ───
+    html += '<div class="transfer-guide">';
+    html += '<h3>송금안내</h3>';
+    html += '<div class="transfer-guide__list">';
+    residentIds.forEach(function(id) {
+        var r = calcResult.results[id];
+        var roundedAmount = roundTo10(r.total);
+        html += '<div class="transfer-guide__item">';
+        html += '<span class="transfer-guide__name">' + escapeHtml(r.name) + '</span>';
+        html += '<span class="transfer-guide__amount">' + formatCurrency(roundedAmount) + '</span>';
+        html += '</div>';
+    });
+    if (calcResult.totalVacantCost > 0) {
+        html += '<div class="transfer-guide__item">';
+        html += '<span class="transfer-guide__name" style="color:var(--warning)">공실 (운영자)</span>';
+        html += '<span class="transfer-guide__amount" style="color:var(--warning)">' + formatCurrency(roundTo10(calcResult.totalVacantCost)) + '</span>';
+        html += '</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+
     content.innerHTML = html;
     section.style.display = '';
 
@@ -649,6 +671,39 @@ function copyResults() {
 }
 
 /**
+ * 정산 결과를 이미지로 저장합니다.
+ * html2canvas를 사용하여 결과 영역을 캡처한 후 PNG로 다운로드합니다.
+ */
+function downloadResultImage() {
+    var resultsSection = document.getElementById('results-section');
+    if (!resultsSection) return;
+
+    // 버튼 영역을 임시로 숨기기
+    var actions = resultsSection.querySelector('.results-actions');
+    if (actions) actions.style.display = 'none';
+
+    html2canvas(resultsSection, {
+        backgroundColor: '#FFFFFF',
+        scale: 2,
+        useCORS: true,
+        logging: false
+    }).then(function(canvas) {
+        // 버튼 영역 복원
+        if (actions) actions.style.display = '';
+
+        var link = document.createElement('a');
+        link.download = 'ShareCalc_정산결과.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('이미지가 저장되었습니다!');
+    }).catch(function() {
+        // 버튼 영역 복원
+        if (actions) actions.style.display = '';
+        showToast('이미지 저장에 실패했습니다. 다시 시도해주세요.');
+    });
+}
+
+/**
  * 클립보드 API를 사용할 수 없을 때의 대안 복사 방법
  */
 function fallbackCopy(text) {
@@ -696,7 +751,340 @@ function resetData() {
 }
 
 // ========================================
-// 6. 데이터 저장/불러오기 (localStorage)
+// 6. OCR 영수증/청구서 인식
+// ========================================
+
+/**
+ * OCR로 인식된 텍스트에서 비용 정보를 파싱합니다.
+ * 한국 공과금 청구서/영수증에서 항목명, 금액, 청구기간을 추출합니다.
+ */
+function parseOcrText(text) {
+    var expenses = [];
+
+    // 텍스트를 줄 단위로 분리
+    var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+    var fullText = lines.join(' ');
+
+    // ─── 1단계: 항목명 인식 ───
+    // 공과금 키워드 매칭
+    var knownItems = [
+        { keywords: ['전기', '전력', '한전', '한국전력', '전기세', '전기요금', '전기료'], name: '전기세' },
+        { keywords: ['가스', '도시가스', '가스비', '가스요금', '가스료'], name: '가스비' },
+        { keywords: ['수도', '상수도', '하수도', '수도세', '수도요금', '수도료'], name: '수도세' },
+        { keywords: ['관리비', '관리', '아파트관리', '건물관리'], name: '관리비' },
+        { keywords: ['인터넷', 'KT', 'SKT', 'LG', 'SK브로드밴드', 'LGU', '통신', '와이파이'], name: '인터넷' },
+        { keywords: ['렌탈', '정수기', '공기청정기', '비데'], name: '렌탈비' }
+    ];
+
+    var detectedName = '';
+    for (var k = 0; k < knownItems.length; k++) {
+        for (var w = 0; w < knownItems[k].keywords.length; w++) {
+            if (fullText.indexOf(knownItems[k].keywords[w]) !== -1) {
+                detectedName = knownItems[k].name;
+                break;
+            }
+        }
+        if (detectedName) break;
+    }
+
+    // ─── 2단계: 금액 인식 ───
+    // 다양한 금액 패턴 매칭
+    var amount = 0;
+
+    // "청구금액", "납부금액", "합계", "총액" 등의 키워드 근처 금액 우선
+    var amountKeywords = [
+        /(?:청구\s*금액|납부\s*금액|당월\s*요금|이번\s*달|금월|합계|총\s*금액|총액|청구\s*요금|납부\s*할\s*금액|결제\s*금액)[:\s]*([0-9,]+)\s*원?/,
+        /([0-9,]+)\s*원?\s*(?:청구|납부|결제)/,
+        /(?:금\s*액|요\s*금)[:\s]*([0-9,]+)\s*원?/
+    ];
+
+    for (var p = 0; p < amountKeywords.length; p++) {
+        var amountMatch = fullText.match(amountKeywords[p]);
+        if (amountMatch) {
+            var parsed = parseInt(amountMatch[1].replace(/,/g, ''));
+            if (parsed >= 100 && parsed <= 99999999) {
+                amount = parsed;
+                break;
+            }
+        }
+    }
+
+    // 키워드 매칭 실패 시, 가장 큰 금액을 추출 (일반적으로 총액이 가장 큼)
+    if (amount === 0) {
+        var allAmounts = [];
+        var amountRegex = /([0-9]{1,3}(?:,?[0-9]{3})+)\s*원/g;
+        var match;
+        while ((match = amountRegex.exec(fullText)) !== null) {
+            var val = parseInt(match[1].replace(/,/g, ''));
+            if (val >= 100 && val <= 99999999) {
+                allAmounts.push(val);
+            }
+        }
+        // "원" 없이 큰 숫자 패턴도 시도
+        if (allAmounts.length === 0) {
+            var numRegex = /\b([0-9]{1,3}(?:,?[0-9]{3})+)\b/g;
+            while ((match = numRegex.exec(fullText)) !== null) {
+                var numVal = parseInt(match[1].replace(/,/g, ''));
+                if (numVal >= 1000 && numVal <= 99999999) {
+                    allAmounts.push(numVal);
+                }
+            }
+        }
+        if (allAmounts.length > 0) {
+            amount = Math.max.apply(null, allAmounts);
+        }
+    }
+
+    // ─── 3단계: 청구 기간 인식 ───
+    var startDate = '';
+    var endDate = '';
+
+    // 다양한 날짜 형식 패턴
+    var periodPatterns = [
+        // "2024.01.01 ~ 2024.01.31" 또는 "2024-01-01 ~ 2024-01-31"
+        /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*[~\-−–]\s*(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/,
+        // "01.01 ~ 01.31" (같은 해)
+        /(\d{1,2})[.\-/](\d{1,2})\s*[~\-−–]\s*(\d{1,2})[.\-/](\d{1,2})/,
+        // "사용기간: 2024년 1월 1일 ~ 2024년 1월 31일"
+        /(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?\s*[~\-−–]\s*(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/,
+        // "1월 1일 ~ 1월 31일" (같은 해)
+        /(\d{1,2})\s*월\s*(\d{1,2})\s*일?\s*[~\-−–]\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/
+    ];
+
+    var currentYear = new Date().getFullYear();
+
+    for (var d = 0; d < periodPatterns.length; d++) {
+        var dateMatch = fullText.match(periodPatterns[d]);
+        if (dateMatch) {
+            if (d === 0) {
+                // YYYY.MM.DD ~ YYYY.MM.DD
+                startDate = dateMatch[1] + '-' + padZero(dateMatch[2]) + '-' + padZero(dateMatch[3]);
+                endDate = dateMatch[4] + '-' + padZero(dateMatch[5]) + '-' + padZero(dateMatch[6]);
+            } else if (d === 1) {
+                // MM.DD ~ MM.DD (현재 연도 사용)
+                startDate = currentYear + '-' + padZero(dateMatch[1]) + '-' + padZero(dateMatch[2]);
+                endDate = currentYear + '-' + padZero(dateMatch[3]) + '-' + padZero(dateMatch[4]);
+            } else if (d === 2) {
+                // YYYY년 M월 D일 ~ YYYY년 M월 D일
+                startDate = dateMatch[1] + '-' + padZero(dateMatch[2]) + '-' + padZero(dateMatch[3]);
+                endDate = dateMatch[4] + '-' + padZero(dateMatch[5]) + '-' + padZero(dateMatch[6]);
+            } else if (d === 3) {
+                // M월 D일 ~ M월 D일
+                startDate = currentYear + '-' + padZero(dateMatch[1]) + '-' + padZero(dateMatch[2]);
+                endDate = currentYear + '-' + padZero(dateMatch[3]) + '-' + padZero(dateMatch[4]);
+            }
+            break;
+        }
+    }
+
+    // 청구 년월만 있는 경우 (예: "2024년 1월분", "2024.01")
+    if (!startDate) {
+        var monthPatterns = [
+            /(\d{4})\s*년\s*(\d{1,2})\s*월/,
+            /(\d{4})[.\-/](\d{1,2})\s*(?:분|월분|청구)/
+        ];
+        for (var m = 0; m < monthPatterns.length; m++) {
+            var monthMatch = fullText.match(monthPatterns[m]);
+            if (monthMatch) {
+                var year = parseInt(monthMatch[1]);
+                var month = parseInt(monthMatch[2]);
+                startDate = year + '-' + padZero(month) + '-01';
+                var lastDay = new Date(year, month, 0).getDate();
+                endDate = year + '-' + padZero(month) + '-' + padZero(lastDay);
+                break;
+            }
+        }
+    }
+
+    // 결과가 하나라도 인식되었으면 비용 객체 반환
+    if (detectedName || amount > 0) {
+        expenses.push({
+            name: detectedName,
+            amount: amount,
+            startDate: startDate,
+            endDate: endDate
+        });
+    }
+
+    return expenses;
+}
+
+/**
+ * 숫자를 2자리 문자열로 패딩합니다.
+ */
+function padZero(n) {
+    var num = parseInt(n);
+    return num < 10 ? '0' + num : '' + num;
+}
+
+/**
+ * 이미지 파일에서 OCR을 수행하고 비용을 자동 입력합니다.
+ */
+function processOcrFiles(files) {
+    if (!files || files.length === 0) return;
+
+    var progressEl = document.getElementById('ocr-progress');
+    var progressFill = document.getElementById('ocr-progress-fill');
+    var progressText = document.getElementById('ocr-progress-text');
+    var previewList = document.getElementById('ocr-preview-list');
+
+    progressEl.style.display = '';
+    progressFill.style.width = '0%';
+
+    var totalFiles = files.length;
+    var processedCount = 0;
+    var allDetected = [];
+
+    // 각 파일을 순차적으로 처리
+    function processNext(index) {
+        if (index >= totalFiles) {
+            // 모든 파일 처리 완료
+            progressFill.style.width = '100%';
+            if (allDetected.length > 0) {
+                progressText.textContent = allDetected.length + '건의 비용이 인식되었습니다!';
+                // 인식된 비용을 자동 입력
+                allDetected.forEach(function(expense) {
+                    addExpenseFromOcr(expense);
+                });
+                showToast(allDetected.length + '건의 비용이 자동 입력되었습니다.');
+            } else {
+                progressText.textContent = '비용 정보를 인식하지 못했습니다. 직접 입력해주세요.';
+                showToast('비용 정보를 인식하지 못했습니다.');
+            }
+            // 3초 후 프로그레스 숨기기
+            setTimeout(function() {
+                progressEl.style.display = 'none';
+            }, 3000);
+            return;
+        }
+
+        var file = files[index];
+        if (!file.type.startsWith('image/')) {
+            processNext(index + 1);
+            return;
+        }
+
+        // 미리보기 이미지 추가
+        var previewItem = document.createElement('div');
+        previewItem.className = 'ocr-preview-item processing';
+        var img = document.createElement('img');
+        var reader = new FileReader();
+        reader.onload = function(e) { img.src = e.target.result; };
+        reader.readAsDataURL(file);
+        previewItem.appendChild(img);
+        previewList.appendChild(previewItem);
+
+        var baseProgress = (index / totalFiles) * 100;
+        progressText.textContent = (index + 1) + '/' + totalFiles + ' 이미지 분석 중...';
+        progressFill.style.width = baseProgress + '%';
+
+        // Tesseract.js OCR 실행
+        Tesseract.recognize(file, 'kor+eng', {
+            logger: function(info) {
+                if (info.status === 'recognizing text') {
+                    var fileProgress = (info.progress || 0) * (100 / totalFiles);
+                    progressFill.style.width = (baseProgress + fileProgress) + '%';
+                }
+            }
+        }).then(function(result) {
+            var text = result.data.text;
+            var detected = parseOcrText(text);
+
+            // 미리보기 완료 표시
+            previewItem.classList.remove('processing');
+            if (detected.length > 0) {
+                var check = document.createElement('div');
+                check.className = 'ocr-preview-check';
+                check.textContent = '\u2713';
+                previewItem.appendChild(check);
+                allDetected = allDetected.concat(detected);
+            }
+
+            processedCount++;
+            processNext(index + 1);
+        }).catch(function() {
+            previewItem.classList.remove('processing');
+            processedCount++;
+            processNext(index + 1);
+        });
+    }
+
+    processNext(0);
+}
+
+/**
+ * OCR 인식 결과를 비용 항목으로 추가합니다.
+ */
+function addExpenseFromOcr(ocrExpense) {
+    var newExpense = {
+        id: generateId(),
+        name: ocrExpense.name || '',
+        amount: ocrExpense.amount || 0,
+        startDate: ocrExpense.startDate || '',
+        endDate: ocrExpense.endDate || ''
+    };
+
+    // 기존 빈 비용 항목이 있으면 그것을 채우기
+    var emptyExpense = state.expenses.find(function(e) {
+        return !e.name && !e.amount && !e.startDate && !e.endDate;
+    });
+
+    if (emptyExpense) {
+        emptyExpense.name = newExpense.name;
+        emptyExpense.amount = newExpense.amount;
+        emptyExpense.startDate = newExpense.startDate;
+        emptyExpense.endDate = newExpense.endDate;
+    } else {
+        state.expenses.push(newExpense);
+    }
+
+    renderExpenses();
+    saveToStorage();
+}
+
+/**
+ * OCR 업로드 영역의 이벤트를 초기화합니다.
+ */
+function initOcrEvents() {
+    var dropzone = document.getElementById('ocr-dropzone');
+    var fileInput = document.getElementById('ocr-file-input');
+
+    // 클릭으로 파일 선택
+    dropzone.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    // 파일 선택 시
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            processOcrFiles(Array.from(e.target.files));
+            fileInput.value = ''; // 같은 파일 재업로드 가능하도록 초기화
+        }
+    });
+
+    // 드래그 앤 드롭
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            processOcrFiles(Array.from(e.dataTransfer.files));
+        }
+    });
+}
+
+// ========================================
+// ========================================
+// 7. 데이터 저장/불러오기 (localStorage)
 // ========================================
 // 브라우저를 닫았다 열어도 데이터가 유지됩니다.
 // localStorage는 브라우저 내부 저장소로, 서버가 필요없습니다.
@@ -737,7 +1125,7 @@ function loadFromStorage() {
 }
 
 // ========================================
-// 7. 초기화 (앱 시작)
+// 8. 초기화 (앱 시작)
 // ========================================
 
 /**
@@ -760,6 +1148,9 @@ function initEvents() {
 
     // 결과 복사 버튼
     document.getElementById('copy-btn').addEventListener('click', copyResults);
+
+    // 이미지 저장 버튼
+    document.getElementById('download-image-btn').addEventListener('click', downloadResultImage);
 
     // 데이터 초기화 버튼
     document.getElementById('reset-btn').addEventListener('click', resetData);
@@ -811,6 +1202,7 @@ function init() {
 
     // 이벤트 등록
     initEvents();
+    initOcrEvents();
 }
 
 // DOM이 준비되면 앱 시작
