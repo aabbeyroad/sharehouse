@@ -476,6 +476,49 @@ body {
     color: #92400E;
 }
 
+/* 송금안내 */
+.transfer-guide {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--primary-light);
+    border: 1px solid #BFDBFE;
+    border-radius: var(--radius-sm);
+}
+
+.transfer-guide h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+
+.transfer-guide__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.transfer-guide__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.transfer-guide__name {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.transfer-guide__amount {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary);
+}
+
 /* 반올림 안내 */
 .rounding-note {
     margin-top: 12px;

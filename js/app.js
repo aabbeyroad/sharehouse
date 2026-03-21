@@ -423,6 +423,27 @@ function renderResults(calcResult) {
     // 반올림 안내
     html += '<div class="rounding-note">※ 모든 금액은 10원 단위로 반올림되었습니다.</div>';
 
+    // ─── 송금안내 (맨 아래) ───
+    html += '<div class="transfer-guide">';
+    html += '<h3>송금안내</h3>';
+    html += '<div class="transfer-guide__list">';
+    residentIds.forEach(function(id) {
+        var r = calcResult.results[id];
+        var roundedAmount = roundTo10(r.total);
+        html += '<div class="transfer-guide__item">';
+        html += '<span class="transfer-guide__name">' + escapeHtml(r.name) + '</span>';
+        html += '<span class="transfer-guide__amount">' + formatCurrency(roundedAmount) + '</span>';
+        html += '</div>';
+    });
+    if (calcResult.totalVacantCost > 0) {
+        html += '<div class="transfer-guide__item">';
+        html += '<span class="transfer-guide__name" style="color:var(--warning)">공실 (운영자)</span>';
+        html += '<span class="transfer-guide__amount" style="color:var(--warning)">' + formatCurrency(roundTo10(calcResult.totalVacantCost)) + '</span>';
+        html += '</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+
     content.innerHTML = html;
     section.style.display = '';
 
@@ -649,6 +670,39 @@ function copyResults() {
 }
 
 /**
+ * 정산 결과를 이미지로 저장합니다.
+ * html2canvas를 사용하여 결과 영역을 캡처한 후 PNG로 다운로드합니다.
+ */
+function downloadResultImage() {
+    var resultsSection = document.getElementById('results-section');
+    if (!resultsSection) return;
+
+    // 버튼 영역을 임시로 숨기기
+    var actions = resultsSection.querySelector('.results-actions');
+    if (actions) actions.style.display = 'none';
+
+    html2canvas(resultsSection, {
+        backgroundColor: '#FFFFFF',
+        scale: 2,
+        useCORS: true,
+        logging: false
+    }).then(function(canvas) {
+        // 버튼 영역 복원
+        if (actions) actions.style.display = '';
+
+        var link = document.createElement('a');
+        link.download = 'ShareCalc_정산결과.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('이미지가 저장되었습니다!');
+    }).catch(function() {
+        // 버튼 영역 복원
+        if (actions) actions.style.display = '';
+        showToast('이미지 저장에 실패했습니다. 다시 시도해주세요.');
+    });
+}
+
+/**
  * 클립보드 API를 사용할 수 없을 때의 대안 복사 방법
  */
 function fallbackCopy(text) {
@@ -760,6 +814,9 @@ function initEvents() {
 
     // 결과 복사 버튼
     document.getElementById('copy-btn').addEventListener('click', copyResults);
+
+    // 이미지 저장 버튼
+    document.getElementById('download-image-btn').addEventListener('click', downloadResultImage);
 
     // 데이터 초기화 버튼
     document.getElementById('reset-btn').addEventListener('click', resetData);
